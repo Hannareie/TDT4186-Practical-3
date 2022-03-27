@@ -1,19 +1,24 @@
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
+#include <string.h>
 #include <sys/wait.h>
-#include <readline/readline.h>
-#include <readline/history.h>
-  
-#define MAXCOM 1000 
-#define MAXLIST 100
-  
-// Clearing the shell using escape sequences
-#define clear() {
-    printf("\033[H\033[J")
-}
+#include <sys/types.h>
+#include <unistd.h>
+#include <signal.h>
+
+#define MAXLEN 512
+#define MAXLIST 10
+
+char* read_line();
+int execute(char**);
+char** get_args(char*);
+
+int checkInRedirect(char** args);
+int checkOutRedirect(char** args);
+int checkBackgroundProcesses(char** args);
+int printAllBackgroundProcesses(char** args); //Not yet implemented
+
+#define clear() printf("\033[H\033[J")
   
 void init_shell()
 {
@@ -26,194 +31,209 @@ void init_shell()
     sleep(1);
     clear();
 }
-  
-// Function to take input
-int userInput(char* str) {
-    char* buf;
 
-    buf = readline(": ");
+void handler(int sig) {
+    int status;
+    waitpid(-1, &status, WNOHANG);
+}
 
-    if (strlen(buf) != 0) {
-        add_history(buf);
-        strcpy(str, buf);
-        return 0;
-    } else {
-        return 1;
-    }
-}
-  
-// Function to print Current Directory.
-void printDirectory() {
-    char cwd[1024];
-    getcwd(cwd, sizeof(cwd));
-    printf("\n%s", cwd);
-}
-  
-// Function where the system command is executed
-void executeArgs(char** parsed) {
-    // Forking a child
-    pid_t pid = fork(); 
-    if (pid == -1) {
-        printf("\nFork failed..");
-        return;
-    } else if (pid == 0) {
-        if (execvp(parsed[0], parsed) < 0) {
-            printf("\nCould not execute command..");
-        }
-        exit(0);
-    } else {
-        // waiting for child to terminate
-        wait(NULL); 
-        return;
-    }
-}
-  
-// Function where the piped system commands is executed
-void executePipedArgs(char** parsed, char** parsedpipe) {
-    // 0 is read end, 1 is write end
-    int pipefd[2]; 
-    pid_t p1, p2;
-  
-    if (pipe(pipefd) < 0) {
-        printf("\nPipe could not be initialized");
-        return;
-    }
-    p1 = fork();
-    if (p1 < 0) {
-        printf("\nFork failed..");
-        return;
-    }
-  
-    if (p1 == 0) {
-        // Child 1 executing..
-        // It only needs to write at the write end
-        close(pipefd[0]);
-        dup2(pipefd[1], STDOUT_FILENO);
-        close(pipefd[1]);
-  
-        if (execvp(parsed[0], parsed) < 0) {
-            printf("\nCould not execute command 1..");
-            exit(0);
-        }
-    } else {
-        p2 = fork();
-        if (p2 < 0) {
-            printf("\nFork failed..");
-            return;
-        }
-  
-        if (p2 == 0) {
-            close(pipefd[1]);
-            dup2(pipefd[0], STDIN_FILENO);
-            close(pipefd[0]);
-            if (execvp(parsedpipe[0], parsedpipe) < 0) {
-                printf("\nCould not execute command 2..");
-                exit(0);
-            }
-        } else {
-            wait(NULL);
-            wait(NULL);
-        }
-    }
-}
-  
-// Function to execute builtin commands
-int cmdHandler(char** parsed) {
-    int numCmds = 4, i, switchArgs = 0;
-    char* cmdsList[numCmds];
-    char* username;
-  
-    cmdsList[0] = "exit";
-    cmdsList[1] = "cd";
-  
-    for (i = 0; i < numCmds; i++) {
-        if (strcmp(parsed[0], cmdsList[i]) == 0) {
-            switchArgs = i + 1;
-            break;
-        }
-    }
-  
-    switch (switchArgs) {
-    case 1:
-        printf("\nGoodbye\n");
-        exit(0);
-    case 2:
-        chdir(parsed[1]);
-        return 1;
-    default:
-        break;
-    }
+int main()
+{
+    char *input;
+    char **args;
+    int status, count;
+    char *prompt;
+
+    signal(SIGCHLD, handler);
+    init_shell();
+
+    do {
+        char* cwd = getcwd(NULL, 0);
+        prompt = malloc((strlen(cwd) + 3) * sizeof(char));
+        strcpy(prompt, cwd);
+        strcat(prompt, ": ");
+
+        free(cwd);
+
+        printf("%s", prompt);
+        input = read_line();
+        args = get_args(input);
+        status = execute(args);
+
+        free(args);
+        free(input);
+        free(prompt);
+    } while (status);
+
     return 0;
 }
-  
-// function for finding pipe
-int parsePipe(char* str, char** strpiped) {
-    int i;
-    for (i = 0; i < 2; i++) {
-        strpiped[i] = strsep(&str, "|");
-        if (strpiped[i] == NULL)
-            break;
+
+char* read_line()
+{
+    char* line = (char*) malloc(MAXLEN + 1); // one extra for the terminating null character
+
+    // read the input
+    if (fgets(line, MAXLEN + 1, stdin) == NULL) {
+        if (feof(stdin)) {
+            exit(EXIT_SUCCESS);
+        } else {
+            perror("basic shell: fgets error\n");
+            exit(EXIT_FAILURE);
+        }
     }
-    // returns zero if no pipe is found.
-    if (strpiped[1] == NULL) {
-        return 0;
-    }
-    else {
+    return line;
+}
+
+int execute(char** args) 
+{
+    pid_t pid;
+    int status;
+    char* inFile;
+    char* outFile;
+    FILE* infp;
+    FILE* outfp;
+    int inRedirect;
+    int outRedirect;
+    int background;
+
+    // if command is empty
+    if (args[0] == NULL) {
         return 1;
     }
-}
-  
-// function for parsing command words
-void parseSpace(char* str, char** parsed) {
-    int i;
-    for (i = 0; i < MAXLIST; i++) {
-        parsed[i] = strsep(&str, " ");
-  
-        if (parsed[i] == NULL)
-            break;
-        if (strlen(parsed[i]) == 0)
-            i--;
-    }
-}
-  
-int processString(char* str, char** parsed, char** parsedpipe) {
-    char* strpiped[2];
-    int piped = 0;
-  
-    piped = parsePipe(str, strpiped);
-  
-    if (piped) {
-        parseSpace(strpiped[0], parsed);
-        parseSpace(strpiped[1], parsedpipe);
-  
-    } else {
-        parseSpace(str, parsed);
-    }
-    if (cmdHandler(parsed)) {
+
+    // exit command
+    if (strcmp(args[0], "exit") == 0 ) {
+        printf("\nGoodbye\n");
         return 0;
-    } else {
-        return 1 + piped;
     }
-}
-  
-int main() {
-    char inputString[MAXCOM], *parsedArgs[MAXLIST];
-    char* parsedArgsPiped[MAXLIST];
-    int execFlag = 0;
-    init_shell();
-  
-    while (1) {
-        printDirectory();
-        if (userInput(inputString)) {
-            continue;
+
+    // cd command
+    if (strcmp(args[0], "cd") == 0) {
+        if (args[1] == NULL) {
+            fprintf(stderr, "shell output: expected argument to \"cd\"\n");
+        } else {
+            if (chdir(args[1]) != 0) {
+              perror("shell output");
+            }
+        }
+        return 1;
+    }
+    //TODO: Not yet implemented
+    if (strcmp(args[0], "jobs") == 0) {
+        printAllBackgroundProcesses(args);
+    }
+
+    // check for redirection or background process
+    inRedirect = checkInRedirect(args);
+    outRedirect = checkOutRedirect(args);
+    background = checkBackgroundProcesses(args);
+
+    // create a child process
+    pid = fork();
+
+    // the child process gets 0 in return from fork()
+    if (pid == 0) {
+        // redirection
+        if (inRedirect >= 0) {
+            inFile = args[inRedirect + 1];
+            args[inRedirect] = NULL;
+
+            infp = freopen(inFile, "r", stdin);
         }
 
-        execFlag = processString(inputString, parsedArgs, parsedArgsPiped);
-        if (execFlag == 1)
-            executeArgs(parsedArgs);
-  
-        if (execFlag == 2)
-            executePipedArgs(parsedArgs, parsedArgsPiped);
+        if (outRedirect >= 0) {
+            outFile = args[outRedirect + 1];
+            args[outRedirect] = NULL;
+
+            outfp = freopen(outFile, "w", stdout);
+        }
+
+        // check for background processes
+        if (background >= 0) {
+            args[background] = NULL;
+        }
+
+        // call execvp() to execute the user command
+        if (execvp(args[0], args) == -1) {
+            perror("shell output");
+        }
+        exit(EXIT_FAILURE);
+    }
+    else if (pid < 0) {
+        perror("shell output");
+    }
+    else {
+        if (background < 0) {
+            waitpid(pid, &status, 0);
+        }
+    }
+    return 1;
+}
+
+char** get_args(char* line) {
+    int index = 0;
+
+    char delim[] = " \t\r\n";
+    char **charList = malloc(MAXLIST * sizeof(char*));
+    char *get_line;
+
+    if (!charList) {
+        perror("simple shell: allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    get_line = strtok(line, delim);
+    while (get_line != NULL) {
+        // iteratively add each token to tokenList
+        charList[index] = get_line;
+        index++;
+
+        if (index >= MAXLIST - 1) {
+            break;
+        }
+        get_line = strtok(NULL, delim);
+    }
+    charList[index] = NULL;
+    return charList;
+}
+
+int checkInRedirect(char** args)
+{
+    for (int i = 0; args[i] != NULL; i++) {
+        if (strcmp(args[i], "<") == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int checkOutRedirect(char** args)
+{
+    for (int i = 0; args[i] != NULL; i++) {
+        if (strcmp(args[i], ">") == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int checkBackgroundProcesses(char** args)
+{
+    for (int i = 0; args[i] != NULL; i++) {
+        if (strcmp(args[i], "&") == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+//TODO: Not yet implemented
+int printAllBackgroundProcesses(char** args)
+{
+    for (int i = 0; args[i] != NULL; i++) {
+        if (strcmp(args[i], "&")) {
+            printf("job: %s \n", args[i]);
+        }
     }
     return 0;
 }

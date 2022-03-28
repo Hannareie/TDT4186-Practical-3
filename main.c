@@ -71,7 +71,6 @@ int main()
 char* read_line()
 {
     char* line = (char*) malloc(MAXLEN + 1); // one extra for the terminating null character
-
     // read the input
     if (fgets(line, MAXLEN + 1, stdin) == NULL) {
         if (feof(stdin)) {
@@ -154,7 +153,10 @@ int execute(char** args)
         }
 
         // call execvp() to execute the user command
-        if (execvp(args[0], args) == -1) {
+
+        if (execvp(args[0], args) > 0) {
+            printf("Hello!! %ls", &status);
+        } else {
             perror("shell output");
         }
         exit(EXIT_FAILURE);
@@ -164,7 +166,14 @@ int execute(char** args)
     }
     else {
         if (background < 0) {
-            waitpid(pid, &status, 0);
+            if (waitpid(pid, &status, 0) == -1 ) {
+                perror("waitpid() failed");
+                exit(EXIT_FAILURE);
+            }
+            if (WIFEXITED(status)) {
+                int es = WEXITSTATUS(status);
+                printf("Exit status [%s %s] = %d\n", args[0], args[1], es);
+            }
         }
     }
     return 1;
@@ -216,6 +225,12 @@ int checkOutRedirect(char** args)
     }
     return -1;
 }
+
+/*
+*  Before printing a new prompt, flush should collect all background processes that have terminated (zombies) and print
+*  their exit status like for the foreground processes of the first subtask. For this, you need to store the PID of each
+*  created background process and its command line, e.g., in a linked list.
+*/
 
 int checkBackgroundProcesses(char** args)
 {

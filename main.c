@@ -4,7 +4,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <signal.h>
+#include <errno.h>
 
 #define MAXLEN 512
 #define MAXLIST 10
@@ -44,8 +44,8 @@ int main()
     int status, count;
     char *prompt;
 
-    signal(SIGCHLD, handler);
     init_shell();
+    signal(SIGCHLD, handler);
 
     do {
         char* cwd = getcwd(NULL, 0);
@@ -166,7 +166,8 @@ int execute(char** args)
     }
     else {
         if (background < 0) {
-            if (waitpid(pid, &status, 0) == -1 ) {
+            pid_t retpid = waitpid(pid, &status, 0);
+            if (retpid < 0 && errno != ECHILD) {
                 perror("waitpid() failed");
                 exit(EXIT_FAILURE);
             }
@@ -181,7 +182,6 @@ int execute(char** args)
 
 char** get_args(char* line) {
     int index = 0;
-
     char delim[] = " \t\r\n";
     char **charList = malloc(MAXLIST * sizeof(char*));
     char *get_line;

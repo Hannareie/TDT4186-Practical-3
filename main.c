@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #define MAXLEN 512
 #define MAXLIST 10
@@ -23,7 +24,7 @@ int printAllBackgroundProcesses(char** args); //Not yet implemented
 void init_shell()
 {
     clear();
-    printf("****Welcime to the Shell****");
+    printf("****Welcime to the Shellpadde****");
 
     char* username = getenv("USER");
     printf("\n\nUser is: @%s", username);
@@ -132,19 +133,29 @@ int execute(char** args)
 
     // the child process gets 0 in return from fork()
     if (pid == 0) {
+
+        int in_descriptor;
+        int out_descriptor;
         // redirection
         if (inRedirect >= 0) {
             inFile = args[inRedirect + 1];
             args[inRedirect] = NULL;
 
-            infp = freopen(inFile, "r", stdin);
+            in_descriptor = open(inFile, O_RDONLY);
+            dup2(in_descriptor, STDIN_FILENO);
+
+            //infp = freopen(inFile, "r", stdin);
+            //dup(infp);
         }
 
         if (outRedirect >= 0) {
             outFile = args[outRedirect + 1];
             args[outRedirect] = NULL;
 
-            outfp = freopen(outFile, "w", stdout);
+            out_descriptor = open(outFile, O_WRONLY);
+            dup2(out_descriptor, STDOUT_FILENO);
+
+            //outfp = freopen(outFile, "w", stdout);
         }
 
         // check for background processes
@@ -153,9 +164,8 @@ int execute(char** args)
         }
 
         // call execvp() to execute the user command
-
         if (execvp(args[0], args) > 0) {
-            printf("Hello!! %ls", &status);
+            printf("%ls", &status);
         } else {
             perror("shell output");
         }
@@ -193,7 +203,6 @@ char** get_args(char* line) {
 
     get_line = strtok(line, delim);
     while (get_line != NULL) {
-        // iteratively add each token to tokenList
         charList[index] = get_line;
         index++;
 

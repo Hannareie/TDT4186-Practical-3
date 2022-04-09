@@ -11,23 +11,20 @@
 
 #define MAXLEN 256
 
-/**
- * @brief Linked list where the background tasks is stored
- */
-struct linkedProcess
-{
+//Linked list struct
+struct linkedProcess {
     int pid;
     char name[MAXLEN];
     struct linkedProcess *previous;
     struct linkedProcess *next;
 };
 
-/* Global variables for linked list of background tasks */
+// Global variables for linked list of background tasks
 struct linkedProcess *head = NULL;
 struct linkedProcess *tail = NULL;
 
-void init_shell()
-{
+//Initializing of shell
+void init_shell() {
     printf("\033[H\033[J");
     printf("****Welcime to the Shellpadde****");
 
@@ -38,20 +35,17 @@ void init_shell()
     printf("\033[H\033[J");
 }
 
-void checkStatus(int status, char *input)
-{
+void checkStatus(int status, char *input) {
     input[strcspn(input, "\n")] = 0;
 
-    if (WIFEXITED(status))
-    {
+    if (WIFEXITED(status)) {
         int es = WEXITSTATUS(status);
         printf("Exit status [%s] = %d\n", input, es);
     }
 }
 
-
-void addProcess(int pid, char *name)
-{
+//Adds a process to the linked list
+void addProcess(int pid, char *name) {
     struct linkedProcess *newProcess = (struct linkedProcess*) malloc(sizeof(struct linkedProcess));
 
     /* update values */
@@ -66,67 +60,48 @@ void addProcess(int pid, char *name)
 
     /* update next pointer */
     newProcess->next = NULL;
-    if (head == NULL)
-    {
+    if (head == NULL) {
         head = newProcess;
     }
 }
 
-/**
- * @brief Prints all nodes in the linked list,
- * is called by the prompt "jobs"
- */
-void printAllProcesses()
-{
+//Prints all nodes in the linked list, is called by the prompt "jobs"
+void printAllProcesses() {
     struct linkedProcess *process = head;
-    while (process != NULL)
-    {
+    while (process != NULL) {
         printf("[pid %d] %s\n", process->pid, process->name);
         process = process->next;
     }
 }
 
-/**
- *@brief Removes given node from linked list and rebinds the
- * previous and next node together.
- * If next or previous is NULL, head/tail is updated.
- * Frees the node
- */
-
-void removeProcess(struct linkedProcess *process)
-{
+//Removes a given process from the linked list
+void removeProcess(struct linkedProcess *process) {
     // checks if the linked process is the first process
-    if (process->previous != NULL)
-    {
+    if (process->previous != NULL) {
         process->previous->next = process->next;
     }
-    else
-    {
+    else {
         head = process->next;
     }
 
     /* checks if last node */
-    if (process->next != NULL)
-    {
+    if (process->next != NULL) {
         process->next->previous = process->previous;
     }
-    else
-    {
+    else {
         tail = process->previous;
     }
     free(process);
 }
 
-void checkForCompleteProcesses()
-{
+//Checks for complete processes 
+void checkForCompleteProcesses() {
     struct linkedProcess *process = head;
-    while (process != NULL)
-    {
+    while (process != NULL) {
         int status;
 
         /* checks if processes are complete */
-        if (waitpid(process->pid, &status, WNOHANG))
-        {
+        if (waitpid(process->pid, &status, WNOHANG)) {
             checkStatus(status, process->name);
             removeProcess(process);
         }
@@ -134,15 +109,15 @@ void checkForCompleteProcesses()
     }
 }
 
-void parseString(char *str, char **parsedArgs) {
+void parseString(char *str, char **args) {
     char delim[4] = "\t \n";
 
     for (int i = 0; i < MAXLEN; i++)
     {
-        parsedArgs[i] = strsep(&str, delim);
-        if (parsedArgs[i] == NULL)
+        args[i] = strsep(&str, delim);
+        if (args[i] == NULL)
             break;
-        if (strlen(parsedArgs[i]) == 0)
+        if (strlen(args[i]) == 0)
             i--;
     }
 }
@@ -152,14 +127,15 @@ char* readLine() {
     // read the input
     if (fgets(line, MAXLEN + 1, stdin) == NULL) {
         if (feof(stdin)) {
-            exit(EXIT_SUCCESS);
+            exit(0);
         } else {
             perror("basic shell: fgets error\n");
-            exit(EXIT_FAILURE);
+            exit(1);
         }
     }
     return line;
 }
+
 
 int checkIfBackgroundTask(char input[MAXLEN]) {
     /* removes newline from input string */
@@ -175,18 +151,18 @@ int checkIfBackgroundTask(char input[MAXLEN]) {
 
     /* removes trailing whitespaces after removing '&' */
     while (length > -1) {
-        if (input[length] == ' ' || input[length] == '\t')
+        if (input[length] == ' ' || input[length] == '\t') {
             length--;
-        else
+        }
+        else {
             break;
+        }
         input[length + 1] = '\0';
     }
-
     return check;
-}
+} 
 
-int checkInRedirect(char** args)
-{
+int checkInRedirect(char** args) {
     for (int i = 0; args[i] != NULL; i++) {
         if (strcmp(args[i], "<") == 0) {
             ++i;
@@ -196,8 +172,7 @@ int checkInRedirect(char** args)
     return -1;
 }
 
-int checkOutRedirect(char** args)
-{
+int checkOutRedirect(char** args) {
     for (int i = 0; args[i] != NULL; i++) {
         if (strcmp(args[i], ">") == 0) {
             ++i;
@@ -280,13 +255,7 @@ void execute(char **args, char *input) {
     }
 }
 
-/**
- * @brief runs the shell in a loop. Gets the input from user and
- * calls the execute function. If background task is finished,
- * it is shown before the next prompt is given.
- */
-int main(void)
-{
+int main(void) {
     char cwd[MAXLEN];
     char input[MAXLEN + 1];
     char inputString[MAXLEN];
@@ -294,8 +263,7 @@ int main(void)
 
     init_shell();
 
-    while (1)
-    {
+    while (1) {
         /* checks background processes */
         checkForCompleteProcesses();
 

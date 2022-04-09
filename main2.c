@@ -136,7 +136,6 @@ char* readLine() {
     return line;
 }
 
-
 int checkIfBackgroundTask(char input[MAXLEN]) {
     /* removes newline from input string */
     input[strcspn(input, "\n")] = 0;
@@ -228,7 +227,6 @@ void execute(char **args, char *input) {
             dup2(in_descriptor, STDIN_FILENO);
             close(in_descriptor); 
         }
-
         if (outRedirect >= 0) {
             outFile = args[outRedirect];
             args[outRedirect] = NULL;
@@ -236,13 +234,12 @@ void execute(char **args, char *input) {
             out_descriptor = creat(outFile, 0644);
             dup2(out_descriptor, STDOUT_FILENO);
             close(out_descriptor); 
-        }
-
+        } 
         else {
             execvp(args[0], args);
         }
         exit(0);
-    }
+    } 
     else {
         /* parent process */
         if (background) {

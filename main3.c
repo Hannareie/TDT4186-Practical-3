@@ -12,7 +12,7 @@
 
 #define MAXLEN 256
 
-//Linked list struct
+/* Struvt for the linked list process */
 struct linkedProcess {
     int pid;
     char name[MAXLEN];
@@ -20,11 +20,11 @@ struct linkedProcess {
     struct linkedProcess *next;
 };
 
-// Global variables for linked list of background tasks
+/* Global variables for linked list of background tasks */
 struct linkedProcess *head = NULL;
 struct linkedProcess *tail = NULL;
 
-//Initializing of shell
+/* Initializing of shell */
 void init_shell() {
     printf("\033[H\033[J");
     printf("****Welcime to the Shellpadde****");
@@ -36,6 +36,7 @@ void init_shell() {
     printf("\033[H\033[J");
 }
 
+/* Method to check the status og an exited task */
 void checkStatus(int status, char *input) {
     input[strcspn(input, "\n")] = 0;
 
@@ -45,28 +46,28 @@ void checkStatus(int status, char *input) {
     }
 }
 
-//Adds a process to the linked list
+/* Method to add a node to the linked list*/
 void addProcess(int pid, char *name) {
     struct linkedProcess *newProcess = (struct linkedProcess*) malloc(sizeof(struct linkedProcess));
 
-    /* update values */
+    /* Update the values */
     newProcess->pid = pid;
     strcpy(newProcess->name, name);
 
-    /* update previous pointer */
+    /* Update the previous pointer */
     newProcess->previous = tail;
     if (tail != NULL)
         tail->next = newProcess;
     tail = newProcess;
 
-    /* update next pointer */
+    /* Update the next pointer */
     newProcess->next = NULL;
     if (head == NULL) {
         head = newProcess;
     }
 }
 
-//Prints all nodes in the linked list, is called by the prompt "jobs"
+/* Prints all nodes in the linked list. The method is called as the promt "jobs" */
 void printAllProcesses() {
     struct linkedProcess *process = head;
     while (process != NULL) {
@@ -75,9 +76,9 @@ void printAllProcesses() {
     } 
 }
 
-//Removes a given process from the linked list
+/* Method to remove a given process from the linked list */
 void removeProcess(struct linkedProcess *process) {
-    // checks if the linked process is the first process
+    /* checks if the linked process is the first process */
     if (process->previous != NULL) {
         process->previous->next = process->next;
     }
@@ -85,17 +86,18 @@ void removeProcess(struct linkedProcess *process) {
         head = process->next;
     }
 
-    /* checks if last node */
+    /* checks if the linked process is the last node */
     if (process->next != NULL) {
         process->next->previous = process->previous;
     }
     else {
         tail = process->previous;
     }
+
     free(process);
 }
 
-//Checks for complete processes 
+/* Method to check for complete processes. If a process is teminated it gets removed */
 void checkForCompleteProcesses() {
     struct linkedProcess *process = head;
     while (process != NULL) {
@@ -110,6 +112,7 @@ void checkForCompleteProcesses() {
     }
 }
 
+/* Method to parse a string into args */
 void parseString(char *str, char **args) {
     char delim[4] = "\t \n";
 
@@ -122,6 +125,7 @@ void parseString(char *str, char **args) {
     }
 }
 
+/* Method to check whether a task is to be executed as a background task */
 int checkIfBackgroundTask(char input[MAXLEN]) {
     /* removes newline from input string */
     input[strcspn(input, "\n")] = 0;
@@ -146,6 +150,7 @@ int checkIfBackgroundTask(char input[MAXLEN]) {
     return check;
 } 
 
+/* Method to execute the command from the user */
 void execute(char **args, char *input) {
     int background = checkIfBackgroundTask(input);
 
@@ -188,7 +193,8 @@ void execute(char **args, char *input) {
     if (pid == 0) {
         int index = 0, fd;
 
-        while (args[index]) {   /* parse args for '<' or '>' and filename */
+         /* I/O redirection. Parse args for '<' or '>' and filename */
+        while (args[index]) {  
             if (*args[index] == '>' && args[index+1]) {
                 if ((fd = open(args[index+1], 
                             O_WRONLY | O_CREAT, 
@@ -199,7 +205,7 @@ void execute(char **args, char *input) {
                 dup2 (fd, 1);
                 dup2 (fd, 2);
                 close (fd);
-                // Adjust the rest of the arguments in the array
+                /* Adjust the rest of the arguments in the array */
                 while (args[index]) {
                     args[index] = args[index+2];
                     index++; 
@@ -222,13 +228,14 @@ void execute(char **args, char *input) {
             }
             index++;
         }
+        /* Exectute the command */
         if (execvp (args[0], args) == -1) {
             perror ("execvp");
         }
-        _exit(1);
-    }                           
+        exit(1);
+    }
+    /* Inside arent process. If the command is flagged as a background task, it is added to the linked list. */                           
     else {
-        /* parent process */
         if (background) {
             addProcess(pid, input);
         }
@@ -239,6 +246,7 @@ void execute(char **args, char *input) {
     }
 }
 
+/* Method that runs the shell in a loop. It requests an input from the user and calls the execute method. */
 int main(void) {
     char cwd[MAXLEN];
     char input[MAXLEN];
@@ -251,7 +259,7 @@ int main(void) {
         /* checks background processes */
         checkForCompleteProcesses();
 
-        /* gets current working directory and asks for input */
+        /* Gets the current working directory and asks for an input from the user */
         if (getcwd(cwd, sizeof(cwd)) != NULL) {
             printf("\n%s: ", cwd);
         }
@@ -268,9 +276,9 @@ int main(void) {
             }
         }
 
-        strcpy(inputString, input); // Make a copy of input string
+        strcpy(inputString, input); 
 
-        // parses input into arguments
+        /* Parses the input into arguments to be executed */
         parseString(input, args);
         for (int i = 0; i < MAXLEN; i++) {
             if (!args[i]) {
@@ -281,9 +289,9 @@ int main(void) {
         if (strcmp(args[0], "quit") == 0 || strcmp(args[0], "exit") == 0) {
             break;
         }
-        // execute the command 
+        
+        /* Execute the command */
         execute(args, inputString);
     }
-
     return 0;
 }

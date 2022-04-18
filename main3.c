@@ -24,10 +24,10 @@ struct linkedProcess {
 struct linkedProcess *head = NULL;
 struct linkedProcess *tail = NULL;
 
-/* Initializing of shell */
+/* Initializing the flush to the user */
 void init_shell() {
     printf("\033[H\033[J");
-    printf("****Welcime to the Shellpadde****");
+    printf("****Welcome to flush****");
 
     char* username = getenv("USER");
     printf("\n\nUser is: @%s", username);
@@ -41,8 +41,8 @@ void checkStatus(int status, char *input) {
     input[strcspn(input, "\n")] = 0;
 
     if (WIFEXITED(status)) {
-        int es = WEXITSTATUS(status);
-        printf("Exit status [%s] = %d\n", input, es);
+        int exitStatus = WEXITSTATUS(status);
+        printf("Exit status [%s] = %d\n", input, exitStatus);
     }
 }
 
@@ -50,17 +50,17 @@ void checkStatus(int status, char *input) {
 void addProcess(int pid, char *name) {
     struct linkedProcess *newProcess = (struct linkedProcess*) malloc(sizeof(struct linkedProcess));
 
-    /* Update the values */
+    /* Updates the values */
     newProcess->pid = pid;
     strcpy(newProcess->name, name);
 
-    /* Update the previous pointer */
+    /* Updates the previous pointer */
     newProcess->previous = tail;
     if (tail != NULL)
         tail->next = newProcess;
     tail = newProcess;
 
-    /* Update the next pointer */
+    /* Updates the next pointer */
     newProcess->next = NULL;
     if (head == NULL) {
         head = newProcess;
@@ -78,7 +78,7 @@ void printAllProcesses() {
 
 /* Method to remove a given process from the linked list */
 void removeProcess(struct linkedProcess *process) {
-    /* checks if the linked process is the first process */
+    /* Checks if the linked process is the first process */
     if (process->previous != NULL) {
         process->previous->next = process->next;
     }
@@ -86,7 +86,7 @@ void removeProcess(struct linkedProcess *process) {
         head = process->next;
     }
 
-    /* checks if the linked process is the last node */
+    /* Checks if the linked process is the last node */
     if (process->next != NULL) {
         process->next->previous = process->previous;
     }
@@ -103,7 +103,7 @@ void checkForCompleteProcesses() {
     while (process != NULL) {
         int status;
 
-        /* checks if processes are complete */
+        /* Checks if processes are complete */
         if (waitpid(process->pid, &status, WNOHANG)) {
             checkStatus(status, process->name);
             removeProcess(process);
@@ -127,17 +127,17 @@ void parseString(char *str, char **args) {
 
 /* Method to check whether a task is to be executed as a background task */
 int checkIfBackgroundTask(char input[MAXLEN]) {
-    /* removes newline from input string */
+    /* Removes newline from input string */
     input[strcspn(input, "\n")] = 0;
     int length = strlen(input) - 1;
 
-    /* checks for '&' and removes it from string */
+    /* Checks for '&' and removes it from string */
     int check = input[length] == '&';
     if ((length > 0) && (input[length] == '&')) {
         input[length] = '\0';
         length--;
     }
-    /* removes trailing whitespaces after removing '&' */
+    /* Removes trailing whitespaces after removing '&' */
     while (length > -1) {
         if (input[length] == ' ' || input[length] == '\t') {
             length--;
@@ -154,29 +154,25 @@ int checkIfBackgroundTask(char input[MAXLEN]) {
 void execute(char **args, char *input) {
     int background = checkIfBackgroundTask(input);
 
-    /* internal commands */
+    /* Internal commands */
     if (strcmp(args[0], "help") == 0) {
-        // help 
-        printf("enter a Linux command, or 'exit' to quit\n");
+        printf("flush: enter a Linux command, or 'exit' to quit\n");
         return;
     } 
 
     if (strcmp(args[0], "cd") == 0) {
-        if (args[1]) {
+        if (args[1] != NULL) {
             int cd = chdir(args[1]);
-            switch(cd) {
-                case ENOENT:
-                    printf("msh: cd: '%s' does not exist\n", args[1]);
-                    break;
-                case ENOTDIR:
-                    printf("msh: cd: '%s' not a directory\n", args[1]);
-                    break;
-                default:
-                    printf("msh: cd: bad path\n");
-            }   
+            if (cd != 0) {
+                perror("flush: cd error\n");
+            }  
+        }
+        else {
+            printf("flush: no argument was given for cd\n");
         }
         return;
     }
+
     if (strcmp(args[0], "jobs") == 0) {
         printAllProcesses();
         return;
@@ -186,7 +182,7 @@ void execute(char **args, char *input) {
     pid_t pid = fork();
 
     if (pid < -1) {
-        perror("fork error");
+        perror("flush: fork error\n");
         return;
     }
 
@@ -199,12 +195,12 @@ void execute(char **args, char *input) {
                 if ((fd = open(args[index+1], 
                             O_WRONLY | O_CREAT, 
                             S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)) == -1) {
-                    perror (args[index+1]);
-                    exit (EXIT_FAILURE);
+                    perror(args[index+1]);
+                    exit(1);
                 }
-                dup2 (fd, 1);
-                dup2 (fd, 2);
-                close (fd);
+                dup2(fd, 1);
+                dup2(fd, 2);
+                close(fd);
                 /* Adjust the rest of the arguments in the array */
                 while (args[index]) {
                     args[index] = args[index+2];
@@ -213,12 +209,12 @@ void execute(char **args, char *input) {
                 break;
             }
             else if (*args[index] == '<' && args[index+1]) {
-                if ((fd = open (args[index+1], O_RDONLY)) == -1) {
-                    perror (args[index+1]);
-                    exit (EXIT_FAILURE);
+                if ((fd = open(args[index+1], O_RDONLY)) == -1) {
+                    perror(args[index+1]);
+                    exit(1);
                 }
-                dup2 (fd, 0);
-                close (fd);
+                dup2(fd, 0);
+                close(fd);
                 // Adjust the rest of the arguments in the array
                 while (args[index]) {
                     args[index] = args[index+2];
@@ -228,9 +224,10 @@ void execute(char **args, char *input) {
             }
             index++;
         }
+
         /* Exectute the command */
-        if (execvp (args[0], args) == -1) {
-            perror ("execvp");
+        if (execvp(args[0], args) == -1) {
+            perror("flush: execvp error\n");
         }
         exit(1);
     }
@@ -256,22 +253,23 @@ int main(void) {
     init_shell();
 
     while (1) {        
-        /* checks background processes */
+        /* Checks for complete background processes */
         checkForCompleteProcesses();
 
         /* Gets the current working directory and asks for an input from the user */
         if (getcwd(cwd, sizeof(cwd)) != NULL) {
-            printf("\n%s: ", cwd);
+            printf("%s: ", cwd);
         }
         else {
-            perror("Error while getting cwd\n");
+            perror("flush: cwd error\n");
         }
 
-        if (fgets(input, sizeof(input), stdin) == 0) {
+        if (!fgets(input, sizeof(input), stdin)) {
             if (feof(stdin)) {
-                exit(0);
+                printf("flush: EOF signal is received\n");
+                break;
             } else {
-                perror("basic shell: fgets error\n");
+                perror("flush: fgets error\n");
                 exit(1);
             }
         }

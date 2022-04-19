@@ -10,7 +10,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#define MAXLEN 256
+#define MAXLEN 200
 
 /* Struvt for the linked list process */
 struct linkedProcess {
@@ -56,8 +56,9 @@ void addProcess(int pid, char *name) {
 
     /* Updates the previous pointer */
     newProcess->previous = tail;
-    if (tail != NULL)
+    if (tail != NULL) {
         tail->next = newProcess;
+    }
     tail = newProcess;
 
     /* Updates the next pointer */
@@ -215,7 +216,7 @@ void execute(char **args, char *input) {
                 }
                 dup2(fd, 0);
                 close(fd);
-                // Adjust the rest of the arguments in the array
+                /* Adjust the rest of the arguments in the array */
                 while (args[index]) {
                     args[index] = args[index+2];
                     index++; 

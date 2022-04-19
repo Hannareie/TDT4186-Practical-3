@@ -27,10 +27,10 @@ struct linkedProcess *tail = NULL;
 /* Initializing the flush to the user */
 void init_shell() {
     printf("\033[H\033[J");
-    printf("****Welcome to flush****");
+    printf("****welcome to flush****");
 
     char* username = getenv("USER");
-    printf("\n\nUser is: @%s", username);
+    printf("\n\nuser is: @%s", username);
     printf("\n");
     sleep(1);
     printf("\033[H\033[J");
@@ -42,7 +42,7 @@ void checkStatus(int status, char *input) {
 
     if (WIFEXITED(status)) {
         int exitStatus = WEXITSTATUS(status);
-        printf("Exit status [%s] = %d\n", input, exitStatus);
+        printf("exit status [%s] = %d\n", input, exitStatus);
     }
 }
 
